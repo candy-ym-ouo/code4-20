@@ -20,6 +20,8 @@ const schema = z.object({
   PUBLIC_APP_URL: z.string().url().default("http://localhost:8080").transform((value) => new URL(value).origin),
   UPLOAD_DIR: z.string().min(1).default("./uploads"),
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(10 * 1024 * 1024),
+  REMINDER_SCHEDULER_ENABLED: z.enum(["true", "false"]).default("true").transform((value) => value === "true"),
+  REMINDER_SCAN_INTERVAL_MS: z.coerce.number().int().min(10_000).default(5 * 60_000),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info")
 });
 

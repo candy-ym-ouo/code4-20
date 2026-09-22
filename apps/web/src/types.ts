@@ -138,3 +138,48 @@ export const movementLabels: Record<string, string> = {
   ADJUSTMENT_OUT: "盘减",
   REVERSAL: "撤销恢复"
 };
+
+export type ReminderSettings = {
+  timezone: string;
+  notifyAtTime: string;
+  lowStockEnabled: boolean;
+  expiryEnabled: boolean;
+  expiryLeadDays: number[];
+  version: number;
+};
+
+export type ReminderEvent = {
+  id: string;
+  type: "LOW_STOCK" | "EXPIRY";
+  status: "PENDING" | "SENT" | "RESOLVED" | "CANCELLED";
+  batchId: string;
+  materialId: string;
+  materialName: string;
+  batchCode: string | null;
+  leadDays: number | null;
+  thresholdQuantity: string | null;
+  remainingQuantity: string | null;
+  expiryAt: string | null;
+  title: string;
+  body: string;
+  scheduledAt: string;
+  sentAt: string | null;
+  readAt: string | null;
+  resolvedAt: string | null;
+  cancelledAt: string | null;
+  cancelReason: string | null;
+  ruleVersion: number;
+  createdAt: string;
+};
+
+export const reminderTypeLabels: Record<string, string> = {
+  LOW_STOCK: "低余量",
+  EXPIRY: "临期"
+};
+
+export const reminderStatusLabels: Record<string, string> = {
+  PENDING: "待发送",
+  SENT: "已通知",
+  RESOLVED: "已解除",
+  CANCELLED: "已取消"
+};

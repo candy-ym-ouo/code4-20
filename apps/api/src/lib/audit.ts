@@ -1,5 +1,3 @@
-import type { DbClient } from "./db.js";
-
 type AuditInput = {
   actorUserId: string;
   action: string;
@@ -10,7 +8,11 @@ type AuditInput = {
   requestId?: string;
 };
 
-export async function writeAudit(client: DbClient, input: AuditInput): Promise<void> {
+type QueryExecutor = {
+  query: (text: string, values?: unknown[]) => Promise<unknown>;
+};
+
+export async function writeAudit(client: QueryExecutor, input: AuditInput): Promise<void> {
   await client.query(
     `INSERT INTO audit_logs
       (actor_user_id, action, entity_type, entity_id, before_data, after_data, request_id)

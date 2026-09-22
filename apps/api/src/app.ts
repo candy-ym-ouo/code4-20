@@ -18,6 +18,7 @@ import { consumptionRoutes } from "./routes/consumptions.js";
 import { colorChangeRoutes } from "./routes/colorChanges.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { insightRoutes } from "./routes/insights.js";
+import { reminderRoutes } from "./routes/reminders.js";
 
 export async function buildApp(options: { runDatabaseMigrations?: boolean } = {}): Promise<FastifyInstance> {
   if (options.runDatabaseMigrations) {
@@ -95,6 +96,7 @@ export async function buildApp(options: { runDatabaseMigrations?: boolean } = {}
     await protectedRoutes.register(colorChangeRoutes);
     await protectedRoutes.register(attachmentRoutes);
     await protectedRoutes.register(insightRoutes);
+    await protectedRoutes.register(reminderRoutes);
   }, { prefix: "/api/v1" });
 
   app.setNotFoundHandler((request, reply) => {

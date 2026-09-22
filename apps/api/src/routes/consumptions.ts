@@ -7,6 +7,7 @@ import { pageMeta, parsePagination } from "../lib/pagination.js";
 import { parseInput } from "../lib/validation.js";
 import { writeAudit } from "../lib/audit.js";
 import { getIdempotencyKey } from "../lib/idempotency.js";
+import { scheduleReminderReconcile } from "../lib/reminderReconcileTrigger.js";
 
 type Query = Record<string, string | undefined>;
 
@@ -201,8 +202,9 @@ export async function consumptionRoutes(app: FastifyInstance): Promise<void> {
         afterData: { ...consumption.rows[0], beforeQuantity: before, afterQuantity: after, autoStartedProject },
         requestId: request.id
       });
-      return { ...consumption.rows[0], idempotent: false };
+      return { ...consumption.rows[0], idempotent: false, batchId: batch.id };
     });
+    if (!created.idempotent) scheduleReminderReconcile({ kind: "BATCH", batchId: created.batchId });
     return reply.status(created.idempotent ? 200 : 201).send({ data: created });
   });
 
@@ -245,8 +247,8 @@ export async function consumptionRoutes(app: FastifyInstance): Promise<void> {
       const updated = await client.query(
         `UPDATE consumptions SET status = 'REVERSED', reversed_at = now(), reversal_reason = $1
           WHERE id = $2
-          RETURNING id, status, reversed_at AS "reversedAt", reversal_reason AS "reversalReason"`,
-        [input.reason, consumption.id]
+          RETURNING id, $3::uuid AS "batchId", status, reversed_at AS "reversedAt", reversal_reason AS "reversalReason"`,
+        [input.reason, consumption.id, consumption.batch_id]
       );
       await writeAudit(client, {
         actorUserId: user.id, action: "REVERSE", entityType: "CONSUMPTION", entityId: consumption.id,
@@ -254,8 +256,15 @@ export async function consumptionRoutes(app: FastifyInstance): Promise<void> {
         afterData: { status: "REVERSED", remainingQuantity: after, reason: input.reason },
         requestId: request.id
       });
-      return updated.rows[0];
+      return updated.rows[0] as {
+        id: string;
+        batchId: string;
+        status: string;
+        reversedAt: Date;
+        reversalReason: string;
+      };
     });
+    scheduleReminderReconcile({ kind: "BATCH", batchId: reversed.batchId });
     return { data: reversed };
   });
 }

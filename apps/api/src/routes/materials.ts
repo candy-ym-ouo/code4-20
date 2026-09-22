@@ -7,6 +7,7 @@ import { AppError } from "../lib/errors.js";
 import { pageMeta, parsePagination } from "../lib/pagination.js";
 import { parseInput } from "../lib/validation.js";
 import { writeAudit } from "../lib/audit.js";
+import { scheduleReminderReconcile } from "../lib/reminderReconcileTrigger.js";
 
 type Query = Record<string, string | undefined>;
 const materialPatchSchema = materialInputSchema.partial().extend({ version: z.number().int().positive() });
@@ -184,7 +185,7 @@ export async function materialRoutes(app: FastifyInstance): Promise<void> {
   app.patch<{ Params: { id: string } }>("/materials/:id", async (request) => {
     const input = parseInput(materialPatchSchema, request.body);
     const user = (request as AuthenticatedRequest).authUser;
-    return withTransaction(async (client) => {
+    const result = await withTransaction(async (client) => {
       const before = await client.query("SELECT * FROM materials WHERE id = $1 FOR UPDATE", [request.params.id]);
       const old = before.rows[0];
       if (!old) throw new AppError(404, "NOT_FOUND", "材料不存在");
@@ -226,6 +227,11 @@ export async function materialRoutes(app: FastifyInstance): Promise<void> {
       await writeAudit(client, { actorUserId: user.id, action: "UPDATE", entityType: "MATERIAL", entityId: request.params.id, beforeData: old, afterData: result.rows[0], requestId: request.id });
       return { data: result.rows[0] };
     });
+    // 低余量阈值属于提醒规则：变更后仅重算该材料未发项（已发不重发）
+    if ("lowStockThreshold" in input) {
+      scheduleReminderReconcile({ kind: "MATERIAL", materialId: request.params.id });
+    }
+    return result;
   });
 
   app.post<{ Params: { id: string } }>("/materials/:id/archive", async (request) => {

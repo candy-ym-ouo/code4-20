@@ -241,3 +241,34 @@
 - `file`
 
 支持 JPEG、PNG、WebP，默认最大 10 MB。
+
+## 10. 低余量与临期提醒
+
+提醒以批次为最小单位生成事件，触发日按操作员设置时区的本地日历日判定，每日固定时刻发送。
+重复扫描幂等；规则或数据变更只重算未发项（PENDING 可取消/改期，SENT 仅在目标消失时标记 RESOLVED，不重复通知）。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/reminders/settings` | 当前提醒规则（单行） |
+| PUT | `/reminders/settings` | 更新规则并立即重算全部未发项 |
+| GET | `/reminders/events` | 事件列表（`type`/`status`/`active`/`unread`/`batchId`/`materialId` 筛选） |
+| GET | `/reminders/events/summary` | 待发送、未读及未终结事件计数 |
+| POST | `/reminders/events/:id/read` | 标记已通知事件为已读 |
+| POST | `/reminders/reconcile` | 手动触发重算（`scope`：`ALL`/`MATERIAL`/`BATCH`） |
+
+规则：
+
+```json
+{
+  "timezone": "Asia/Shanghai",
+  "notifyAtTime": "09:00",
+  "lowStockEnabled": true,
+  "expiryEnabled": true,
+  "expiryLeadDays": [30, 7, 3, 1]
+}
+```
+
+- `LOW_STOCK`：批次 `ACTIVE` 且 `0 < remaining <= material.lowStockThreshold`，每批次一轮（解除后再次跌破可重新通知）。
+- `EXPIRY`：批次有有效期且仍有剩余时，每个提前天数档位各一条；触发日 = 有效期 − 提前天数，`0` 表示到期当天。
+- 事件状态：`PENDING`（待发送）、`SENT`（已通知）、`RESOLVED`（条件解除）、`CANCELLED`（未发项因规则/数据变更取消）。
+- 幂等键：`LOW_STOCK:{batchId}`、`EXPIRY:{batchId}:{leadDays}`，未终结事件数据库层唯一。

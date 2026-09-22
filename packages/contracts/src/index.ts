@@ -40,6 +40,38 @@ export type ColorChangeType = (typeof colorChangeTypes)[number];
 export const attachmentOwnerTypes = ["BATCH", "COLOR_CHANGE", "PROJECT", "CONSUMPTION"] as const;
 export type AttachmentOwnerType = (typeof attachmentOwnerTypes)[number];
 
+export const reminderTypes = ["LOW_STOCK", "EXPIRY"] as const;
+export type ReminderType = (typeof reminderTypes)[number];
+
+export const reminderEventStatuses = ["PENDING", "SENT", "RESOLVED", "CANCELLED"] as const;
+export type ReminderEventStatus = (typeof reminderEventStatuses)[number];
+
+const timeOfDay = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "通知时刻必须是 HH:MM 格式");
+
+export function isSupportedTimeZone(value: string): boolean {
+  const supported = (Intl as { supportedValuesOf?: (key: string) => string[] }).supportedValuesOf;
+  return typeof supported === "function" ? supported.call(Intl, "timeZone").includes(value) : /^[A-Za-z_]+\/[A-Za-z_]+$/.test(value);
+}
+
+export const reminderSettingsUpdateSchema = z
+  .object({
+    timezone: z.string().trim().min(1).max(64).refine(isSupportedTimeZone, "时区标识无效，例如 Asia/Shanghai"),
+    notifyAtTime: timeOfDay,
+    lowStockEnabled: z.boolean(),
+    expiryEnabled: z.boolean(),
+    expiryLeadDays: z
+      .array(z.number().int().min(0).max(3650))
+      .min(1, "至少配置一个提前天数")
+      .max(10, "最多配置 10 个提前天数")
+      .refine((days) => new Set(days).size === days.length, "提前天数不能重复")
+  })
+  .partial()
+  .strict()
+  .refine((value) => Object.keys(value).length > 0, "至少提供一个要更新的字段");
+
 export const unitFamilies = {
   g: { family: "MASS", base: "g", factor: "1" },
   kg: { family: "MASS", base: "g", factor: "1000" },
