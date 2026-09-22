@@ -7,6 +7,7 @@ import { pageMeta, parsePagination } from "../lib/pagination.js";
 import { parseInput } from "../lib/validation.js";
 import { writeAudit } from "../lib/audit.js";
 import { getIdempotencyKey } from "../lib/idempotency.js";
+import { scheduleReminderRefresh } from "../lib/reminderScheduler.js";
 
 type Query = Record<string, string | undefined>;
 type UnitRecord = { stock_unit: string; [key: string]: unknown };
@@ -201,13 +202,15 @@ export async function batchRoutes(app: FastifyInstance): Promise<void> {
       });
       return { data: batch.rows[0], idempotent: false };
     });
+    // 新批次可能已经低于阈值或即将到期。
+    if (!created.idempotent) scheduleReminderRefresh();
     return reply.status(created.idempotent ? 200 : 201).send({ data: created.data });
   });
 
   app.patch<{ Params: { id: string } }>("/batches/:id", async (request) => {
     const input = parseInput(batchPatchSchema, request.body);
     const user = (request as AuthenticatedRequest).authUser;
-    return withTransaction(async (client) => {
+    const data = await withTransaction(async (client) => {
       const before = await client.query("SELECT * FROM batches WHERE id = $1 FOR UPDATE", [request.params.id]);
       const old = before.rows[0];
       if (!old) throw new AppError(404, "NOT_FOUND", "批次不存在");
@@ -238,6 +241,9 @@ export async function batchRoutes(app: FastifyInstance): Promise<void> {
       await writeAudit(client, { actorUserId: user.id, action: "UPDATE", entityType: "BATCH", entityId: request.params.id, beforeData: old, afterData: result.rows[0], requestId: request.id });
       return { data: result.rows[0] };
     });
+    // 有效期变化会改变临期/过期事件的排程。
+    scheduleReminderRefresh();
+    return data;
   });
 
   app.post<{ Params: { id: string } }>("/batches/:id/adjustments", async (request, reply) => {
@@ -294,6 +300,7 @@ export async function batchRoutes(app: FastifyInstance): Promise<void> {
       await writeAudit(client, { actorUserId: user.id, action: "ADJUST", entityType: "BATCH", entityId: batch.id, beforeData: { remainingQuantity: before }, afterData: { remainingQuantity: after, reason: input.reason }, requestId: request.id });
       return { ...movement.rows[0], idempotent: false };
     });
+    if (!adjusted.idempotent) scheduleReminderRefresh();
     return reply.status(adjusted.idempotent ? 200 : 201).send({ data: adjusted });
   });
 
@@ -310,7 +317,7 @@ export async function batchRoutes(app: FastifyInstance): Promise<void> {
 
   app.post<{ Params: { id: string } }>("/batches/:id/archive", async (request) => {
     const user = (request as AuthenticatedRequest).authUser;
-    return withTransaction(async (client) => {
+    const data = await withTransaction(async (client) => {
       const batch = await client.query<{ remaining_quantity: string }>("SELECT remaining_quantity FROM batches WHERE id = $1 FOR UPDATE", [request.params.id]);
       if (!batch.rows[0]) throw new AppError(404, "NOT_FOUND", "批次不存在");
       if (compareQuantities(batch.rows[0].remaining_quantity, "0") > 0) throw new AppError(409, "BATCH_HAS_STOCK", "批次仍有库存，不能归档");
@@ -318,5 +325,8 @@ export async function batchRoutes(app: FastifyInstance): Promise<void> {
       await writeAudit(client, { actorUserId: user.id, action: "ARCHIVE", entityType: "BATCH", entityId: request.params.id, afterData: result.rows[0], requestId: request.id });
       return { data: result.rows[0] };
     });
+    // 归档后未发提醒取消、已发低余量事件终结。
+    scheduleReminderRefresh();
+    return data;
   });
 }

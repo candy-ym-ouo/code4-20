@@ -9,6 +9,7 @@ import { checkDatabase, pool } from "./lib/db.js";
 import { AppError, isClientError, sendError } from "./lib/errors.js";
 import { runMigrations } from "./migrate.js";
 import { checkStorageWritable } from "./lib/storage.js";
+import { reminderScheduler } from "./lib/reminderScheduler.js";
 import { authRoutes } from "./routes/auth.js";
 import { catalogRoutes } from "./routes/catalog.js";
 import { materialRoutes } from "./routes/materials.js";
@@ -18,6 +19,7 @@ import { consumptionRoutes } from "./routes/consumptions.js";
 import { colorChangeRoutes } from "./routes/colorChanges.js";
 import { attachmentRoutes } from "./routes/attachments.js";
 import { insightRoutes } from "./routes/insights.js";
+import { reminderRoutes } from "./routes/reminders.js";
 
 export async function buildApp(options: { runDatabaseMigrations?: boolean } = {}): Promise<FastifyInstance> {
   if (options.runDatabaseMigrations) {
@@ -95,7 +97,14 @@ export async function buildApp(options: { runDatabaseMigrations?: boolean } = {}
     await protectedRoutes.register(colorChangeRoutes);
     await protectedRoutes.register(attachmentRoutes);
     await protectedRoutes.register(insightRoutes);
+    await protectedRoutes.register(reminderRoutes);
   }, { prefix: "/api/v1" });
+
+  // 单实例选主由提醒调度器内部的 PostgreSQL 咨询锁完成。
+  reminderScheduler.start();
+  app.addHook("onClose", async () => {
+    await reminderScheduler.stop();
+  });
 
   app.setNotFoundHandler((request, reply) => {
     reply.status(404).send({

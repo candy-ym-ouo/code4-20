@@ -241,3 +241,45 @@
 - `file`
 
 支持 JPEG、PNG、WebP，默认最大 10 MB。
+
+## 10. 低余量与临期提醒
+
+提醒按操作员配置的时区和每日通知时间调度，事件是批次级的。系统每分钟检查到点事件并投递（事件进入 `SENT` 状态）；每个操作员时区日只做一次全量重算。规则或库存变化后会立即触发一次未发项重算。
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/reminder-settings` | 读取提醒规则 |
+| PATCH | `/reminder-settings` | 更新规则并重算未发事件 |
+| GET | `/reminder-events` | 事件列表（支持 type/status/materialId/batchId/archived 筛选） |
+| GET | `/reminder-events/summary` | 待发送、今日已通知和各类活动事件计数 |
+| POST | `/reminders/reconcile` | 手动触发一次重算并投递 |
+
+规则字段：
+
+- `timezone`：IANA 时区，例如 `Asia/Shanghai`，决定“今天”和通知时刻换算
+- `notifyTime`：当地时间 `HH:MM`，默认 `09:00`
+- `expiryWarningDays`：全局临期提前天数（0–365，默认 30）
+- `lowStockEnabled` / `expiryEnabled`：两个独立开关
+- 材料可以通过 `expiryWarningDays` 设置材料级临期窗口，留空使用全局值；低余量阈值沿用材料的 `lowStockThreshold`
+
+事件类型与状态：
+
+- 类型：`LOW_STOCK`（批次剩余量 ≤ 材料阈值）、`EXPIRING_SOON`（进入临期窗口）、`EXPIRED`（到期日当天或补登历史过期批次）
+- 状态：`PENDING` → `SENT`；规则/数据变化使未发事件不再成立时标记 `CANCELLED`
+- 低余量已发事件在本轮 episode 结束（补货、耗尽、归档、阈值失效）后标记 `SUPERSEDED`，再次跌破阈值时作为新一轮事件重新通知
+- 临期/过期事件指纹是批次有效期，同一有效期只通知一次；有效期改期产生新指纹事件，已发事件保留为历史
+
+幂等保证：`reminder_events` 对 `(batch_id, type, fingerprint)` 在 `PENDING/SENT` 状态上有部分唯一索引，重复扫描不会产生或重复发送同一事件。
+
+PATCH 示例：
+
+```json
+{
+  "timezone": "Asia/Shanghai",
+  "notifyTime": "09:00",
+  "expiryWarningDays": 30,
+  "lowStockEnabled": true,
+  "expiryEnabled": true,
+  "version": 1
+}
+```

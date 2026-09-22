@@ -7,6 +7,7 @@ import { pageMeta, parsePagination } from "../lib/pagination.js";
 import { parseInput } from "../lib/validation.js";
 import { writeAudit } from "../lib/audit.js";
 import { getIdempotencyKey } from "../lib/idempotency.js";
+import { scheduleReminderRefresh } from "../lib/reminderScheduler.js";
 
 type Query = Record<string, string | undefined>;
 
@@ -203,13 +204,14 @@ export async function consumptionRoutes(app: FastifyInstance): Promise<void> {
       });
       return { ...consumption.rows[0], idempotent: false };
     });
+    if (!created.idempotent) scheduleReminderRefresh();
     return reply.status(created.idempotent ? 200 : 201).send({ data: created });
   });
 
   app.post<{ Params: { id: string } }>("/consumptions/:id/reverse", async (request) => {
     const input = parseInput(reverseConsumptionSchema, request.body);
     const user = (request as AuthenticatedRequest).authUser;
-    const reversed = await withTransaction(async (client) => {
+    const data = await withTransaction(async (client) => {
       const result = await client.query<{
         id: string;
         batch_id: string;
@@ -256,6 +258,8 @@ export async function consumptionRoutes(app: FastifyInstance): Promise<void> {
       });
       return updated.rows[0];
     });
-    return { data: reversed };
+    // 撤销恢复库存，可能解除低余量 episode（已发事件在重算时终结）。
+    scheduleReminderRefresh();
+    return { data };
   });
 }

@@ -147,6 +147,7 @@ export const materialInputSchema = z.object({
   subtype: z.string().trim().max(80).nullable().optional(),
   stockUnit: z.enum(stockUnits),
   lowStockThreshold: decimalQuantity.nullable().optional(),
+  expiryWarningDays: z.number().int().min(0).max(365).nullable().optional(),
   defaultColorName: z.string().trim().max(80).nullable().optional(),
   defaultColorHex: z.union([colorHex, z.literal("")]).nullable().optional(),
   tags: z.array(z.string().trim().min(1).max(40)).max(30).default([]),
@@ -250,6 +251,18 @@ export const reverseConsumptionSchema = z.object({
 
 export const projectStatusSchema = z.object({
   status: z.enum(projectStatuses),
+  version: z.number().int().positive()
+});
+
+export const reminderSettingsSchema = z.object({
+  timezone: z.string().trim().min(1).max(64),
+  lowStockEnabled: z.boolean(),
+  expiryEnabled: z.boolean(),
+  expiryWarningDays: z.number().int().min(0).max(365),
+  notifyTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "通知时间必须是 HH:MM 格式")
+});
+
+export const reminderSettingsPatchSchema = reminderSettingsSchema.partial().extend({
   version: z.number().int().positive()
 });
 

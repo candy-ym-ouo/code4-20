@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
-import { Box, Collection, DataAnalysis, Document, FolderOpened, Location, Setting, Tickets } from "@element-plus/icons-vue";
+import { Box, Bell, Collection, DataAnalysis, Document, FolderOpened, Location, Setting, Tickets } from "@element-plus/icons-vue";
 import { ElMessage } from "element-plus";
 import { useAuthStore } from "@/stores/auth";
 
@@ -17,6 +17,7 @@ const activeMenu = computed(() => {
   if (route.path.startsWith("/batches")) return "/batches";
   if (route.path.startsWith("/projects")) return "/projects";
   if (route.path.startsWith("/consumptions")) return "/consumptions";
+  if (route.path.startsWith("/reminders")) return "/reminders";
   if (route.path.startsWith("/sources")) return "/sources";
   if (route.path.startsWith("/locations")) return "/locations";
   if (route.path.startsWith("/settings")) return "/settings";
@@ -59,6 +60,7 @@ async function logout() {
         <el-menu-item index="/batches"><el-icon><Collection /></el-icon><span>批次库存</span></el-menu-item>
         <el-menu-item index="/projects"><el-icon><FolderOpened /></el-icon><span>项目</span></el-menu-item>
         <el-menu-item index="/consumptions"><el-icon><Document /></el-icon><span>消耗记录</span></el-menu-item>
+        <el-menu-item index="/reminders"><el-icon><Bell /></el-icon><span>提醒中心</span></el-menu-item>
         <el-menu-item index="/sources"><el-icon><Tickets /></el-icon><span>来源</span></el-menu-item>
         <el-menu-item index="/locations"><el-icon><Location /></el-icon><span>存放位置</span></el-menu-item>
         <el-menu-item index="/audit"><el-icon><Document /></el-icon><span>审计日志</span></el-menu-item>

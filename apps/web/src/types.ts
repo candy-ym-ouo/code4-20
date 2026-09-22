@@ -13,6 +13,7 @@ export type Material = {
   subtype: string | null;
   stockUnit: string;
   lowStockThreshold: string | null;
+  expiryWarningDays: number | null;
   defaultColorName: string | null;
   defaultColorHex: string | null;
   tags: string[];
@@ -23,6 +24,46 @@ export type Material = {
   archivedAt: string | null;
   updatedAt: string;
   version: number;
+};
+
+export type ReminderSettings = {
+  timezone: string;
+  lowStockEnabled: boolean;
+  expiryEnabled: boolean;
+  expiryWarningDays: number;
+  notifyTime: string;
+  lastScanLocalDate: string | null;
+  lastScanAt: string | null;
+  version: number;
+};
+
+export type ReminderEvent = {
+  id: string;
+  batchId: string;
+  batchCode: string | null;
+  materialId: string;
+  materialName: string;
+  materialCode: string | null;
+  stockUnit: string;
+  type: "LOW_STOCK" | "EXPIRING_SOON" | "EXPIRED";
+  status: "PENDING" | "SENT" | "CANCELLED" | "SUPERSEDED";
+  triggerDate: string;
+  scheduledFor: string;
+  sentAt: string | null;
+  quantitySnapshot: string | null;
+  thresholdSnapshot: string | null;
+  expirySnapshot: string | null;
+  daysToExpiry: number | null;
+  cancelReason: string | null;
+  createdAt: string;
+};
+
+export type ReminderSummary = {
+  pending: number;
+  sentToday: number;
+  lowStock: number;
+  expiring: number;
+  expired: number;
 };
 
 export type Batch = {
@@ -137,4 +178,17 @@ export const movementLabels: Record<string, string> = {
   ADJUSTMENT_IN: "盘增",
   ADJUSTMENT_OUT: "盘减",
   REVERSAL: "撤销恢复"
+};
+
+export const reminderTypeLabels: Record<string, string> = {
+  LOW_STOCK: "低余量",
+  EXPIRING_SOON: "临期",
+  EXPIRED: "已过期"
+};
+
+export const reminderStatusLabels: Record<string, string> = {
+  PENDING: "待发送",
+  SENT: "已通知",
+  CANCELLED: "已取消",
+  SUPERSEDED: "已终结"
 };
